@@ -49,12 +49,22 @@
     isMainPackage = name: version:
       (packages."${name}" or null) == version;
 
-    nodejs =
-      if !(l.isString nodejsVersion)
-      then pkgs."nodejs-${defaultNodejsVersion}_x"
-      else
-        pkgs."nodejs-${nodejsVersion}_x"
-        or (throw "Could not find nodejs version '${nodejsVersion}' in pkgs");
+		# Evaluate names returning only existing packages 
+		pickExisting = pkgs: names: l.filter (item: !isNull item) (
+			map (name: if l.hasAttr name pkgs then pkgs.${name} else null) names 
+		);
+		# Generate known package names from supplied version
+		templateVersion = version: ["nodejs-${version}_x" "nodejs_${version}" "nodejs_latest"];
+		nodejsVersions = if !(l.isString nodejsVersion) then 
+			templateVersion defaultNodejsVersion 
+		else 
+			templateVersion nodejsVersion;
+
+		nodejsPackages = pickExisting pkgs nodejsVersions;
+
+    nodejs = if nodejsPackages == [] 
+			then (throw "Could not find nodejs version '${nodejsVersion}' in pkgs")
+			else builtins.head nodejsPackages;
 
     nodeSources = pkgs.runCommandLocal "node-sources" {} ''
       tar --no-same-owner --no-same-permissions -xf ${nodejs.src}
